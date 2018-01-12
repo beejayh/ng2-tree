@@ -1164,7 +1164,7 @@ describe('Tree', () => {
         menuItems: [
           {
             action: NodeMenuItemAction.Custom,
-            name: 'FooMenuItem',
+            name: 'FooMenuItem-HasAccessToMenuItems',
             cssClass: 'fooMenuItemCss'
           }
         ]
@@ -1174,33 +1174,7 @@ describe('Tree', () => {
     const tree: Tree = new Tree(model);
 
     expect(tree.hasCustomMenu()).toBe(true);
-    expect(tree.menuItems).toEqual([{
-      action: NodeMenuItemAction.Custom,
-      name: 'FooMenuItem',
-      cssClass: 'fooMenuItemCss'
-    }]);
-  });
-
-  it('static nodes cannot have custom menu', () => {
-
-    const model: TreeModel = {
-      id: 42,
-      value: 'root',
-      settings: {
-        static: true,
-        menuItems: [
-          {
-            action: NodeMenuItemAction.Custom,
-            name: 'FooMenuItem',
-            cssClass: 'fooMenuItemCss'
-          }
-        ]
-      }
-    };
-
-    const tree: Tree = new Tree(model);
-
-    expect(tree.hasCustomMenu()).toBe(false);
+    expect(tree.menuItems).toEqual(model.settings.menuItems);
   });
 
   it('does not have custom menu without menu items', () => {

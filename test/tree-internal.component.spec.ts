@@ -431,22 +431,6 @@ describe('TreeInternalComponent', () => {
   });
 
   describe('Static Tree', () => {
-    it('should not show menu', () => {
-      const event = jasmine.createSpyObj('e', ['preventDefault']);
-      event.button = EventUtils.MouseButtons.Right;
-
-      faceInternalTreeEl.query(By.css('.value-container')).triggerEventHandler('contextmenu', event);
-
-      fixture.detectChanges();
-
-      expect(faceComponentInstance.isRightMenuVisible).toEqual(false);
-      expect(faceInternalTreeEl.query(By.css('.node-menu'))).toEqual(null);
-
-      const childEl = faceInternalTreeEl.query(By.directive(TreeInternalComponent));
-      expect(childEl.componentInstance.isRightMenuVisible).toEqual(false);
-      expect(childEl.query(By.css('.node-menu'))).toEqual(null);
-    });
-
     it('should allow to override static option for it\'s children', () => {
       const event = jasmine.createSpyObj('e', ['preventDefault']);
       event.button = EventUtils.MouseButtons.Right;

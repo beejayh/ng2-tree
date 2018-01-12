@@ -515,23 +515,6 @@ describe('LeftMenu-TreeInternalComponent', () => {
   });
 
   describe('Static Tree', () => {
-    it('should not show left menu', () => {
-      expect(staticInternalTreeEl.query(By.css('.value-container')).queryAll(By.css('.node-left-menu')).length).toEqual(0);
-
-      const childEl = staticInternalTreeEl.queryAll(By.directive(TreeInternalComponent))[0];
-      expect(childEl.query(By.css('.value-container')).queryAll(By.css('.node-left-menu')).length).toEqual(0);
-
-      const event = jasmine.createSpyObj('e', ['preventDefault']);
-      event.button = EventUtils.MouseButtons.Left;
-
-      staticComponentInstance.showLeftMenu(event);
-
-      fixture.detectChanges();
-
-      expect(staticComponentInstance.isLeftMenuVisible).toEqual(false);
-      expect(staticInternalTreeEl.query(By.css('.node-menu'))).toEqual(null);
-    });
-
     it('should not show left menu when settings leftMenu is false', () => {
       const internalTreeChildren = staticInternalTreeEl.queryAll(By.directive(TreeInternalComponent));
       const eyebowEl = internalTreeChildren[3];

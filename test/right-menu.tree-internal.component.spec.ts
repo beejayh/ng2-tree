@@ -512,22 +512,6 @@ describe('RightMenu-TreeInternalComponent', () => {
   });
 
   describe('Static Tree', () => {
-    it('should not show right menu', () => {
-      const event = jasmine.createSpyObj('e', ['preventDefault']);
-      event.button = EventUtils.MouseButtons.Right;
-
-      staticInternalTreeEl.query(By.css('.value-container')).triggerEventHandler('contextmenu', event);
-
-      fixture.detectChanges();
-
-      expect(staticComponentInstance.isRightMenuVisible).toEqual(false);
-      expect(staticInternalTreeEl.query(By.css('.node-menu'))).toEqual(null);
-
-      const childEl = staticInternalTreeEl.query(By.directive(TreeInternalComponent));
-      expect(childEl.componentInstance.isRightMenuVisible).toEqual(false);
-      expect(childEl.query(By.css('.node-menu'))).toEqual(null);
-    });
-
     it('should not show right menu when settings rightMenu equal to false', () => {
       const internalTreeChildren = staticInternalTreeEl.queryAll(By.directive(TreeInternalComponent));
       const eyebowEl = internalTreeChildren[3];

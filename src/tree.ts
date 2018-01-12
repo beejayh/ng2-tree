@@ -318,7 +318,7 @@ export class Tree {
    * @returns {boolean} A flag indicating whether or not this tree is static.
    */
   public isStatic(): boolean {
-    return get(this.node.settings, 'static', false);
+    return !!get(this.node.settings, 'static', false);
   }
 
   /**
@@ -326,7 +326,7 @@ export class Tree {
    * @returns {boolean} A flag indicating whether or not this tree has a left menu.
    */
   public hasLeftMenu(): boolean {
-    return !get(this.node.settings, 'static', false) && get(this.node.settings, 'leftMenu', false);
+    return !!get(this.node.settings, 'leftMenu', false);
   }
 
   /**
@@ -334,7 +334,7 @@ export class Tree {
    * @returns {boolean} A flag indicating whether or not this tree has a right menu.
    */
   public hasRightMenu(): boolean {
-    return !get(this.node.settings, 'static', false) && get(this.node.settings, 'rightMenu', false);
+    return !!get(this.node.settings, 'rightMenu', false);
   }
 
   /**
@@ -358,7 +358,7 @@ export class Tree {
    * @returns {boolean} A flag indicating whether or not this tree has a custom menu.
    */
   public hasCustomMenu(): boolean {
-    return !this.isStatic() && !!get(this.node.settings, 'menuItems', false);
+    return !!get(this.node.settings, 'menuItems', false);
   }
   /**
    * Check whether this tree is "Branch" or not. "Branch" is a node that has children.
