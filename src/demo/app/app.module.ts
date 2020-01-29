@@ -10,4 +10,4 @@ import { CommonModule } from '@angular/common';
   imports: [BrowserModule, CommonModule, TreeModule],
   bootstrap: [AppComponent]
 })
-export class AppModule { }
+export class AppModule {}

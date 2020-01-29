@@ -1,4 +1,5 @@
 import {
+  AfterViewInit,
   Component,
   ElementRef,
   Input,
@@ -6,19 +7,23 @@ import {
   OnDestroy,
   OnInit,
   SimpleChanges,
-  TemplateRef
+  TemplateRef,
+  ViewChild
 } from '@angular/core';
+
 import * as TreeTypes from './tree.types';
+import { Ng2TreeSettings } from './tree.types';
 import { Tree } from './tree';
 import { TreeController } from './tree-controller';
 import { NodeMenuService } from './menu/node-menu.service';
 import { NodeMenuItemAction, NodeMenuItemSelectedEvent } from './menu/menu.events';
 import { NodeEditableEvent, NodeEditableEventAction } from './editable/editable.events';
+import { NodeCheckedEvent, NodeEvent } from './tree.events';
 import { TreeService } from './tree.service';
 import * as EventUtils from './utils/event.utils';
 import { NodeDraggableEvent } from './draggable/draggable.events';
 import { Subscription } from 'rxjs/Subscription';
-import { get } from './utils/fn.utils';
+import { get, isNil } from './utils/fn.utils';
 
 @Component({
   selector: 'tree-internal',
@@ -29,10 +34,15 @@ import { get } from './utils/fn.utils';
         [ngClass]="{rootless: isRootHidden()}"
         [class.selected]="isSelected"
         (contextmenu)="showRightMenu($event)"
-        [nodeDraggable]="element"
+        [nodeDraggable]="nodeElementRef"
         [tree]="tree">
 
         <div class="folding" (click)="onSwitchFoldingType()" [ngClass]="tree.foldingCssClass"></div>
+
+        <div class="node-checkbox" *ngIf="settings.showCheckboxes">
+        <input checkbox  type="checkbox" [disabled]="isReadOnly" [checked]="this.tree.checked" (change)="switchNodeCheckStatus()" #checkbox />
+         </div>
+
         <div class="node-value"
           *ngIf="!shouldShowInputForTreeValue()"
           [class.node-selected]="isSelected"
@@ -63,53 +73,72 @@ import { get } from './utils/fn.utils';
            [menuItems]="tree.menuItems"
            (menuItemSelected)="onMenuItemSelected($event)">
       </node-menu>
-      <ng-template [ngIf]="tree.isNodeExpanded()">
-        <tree-internal *ngFor="let child of tree.childrenAsync | async" [tree]="child" [template]="template"></tree-internal>
+
+      <div *ngIf="tree.keepNodesInDOM()" [ngStyle]="{'display': tree.isNodeExpanded() ? 'block' : 'none'}">
+        <tree-internal *ngFor="let child of tree.childrenAsync | async" [tree]="child" [template]="template" [settings]="settings"></tree-internal>
+      </div>
+      <ng-template [ngIf]="tree.isNodeExpanded() && !tree.keepNodesInDOM()">
+        <tree-internal *ngFor="let child of tree.childrenAsync | async" [tree]="child" [template]="template" [settings]="settings"></tree-internal>
       </ng-template>
     </li>
   </ul>
   `
 })
-export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
-  @Input()
-  public tree: Tree;
+export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy, AfterViewInit {
+  @Input() public tree: Tree;
 
-  @Input()
-  public settings: TreeTypes.Ng2TreeSettings;
+  @Input() public settings: TreeTypes.Ng2TreeSettings;
 
-  @Input()
-  public template: TemplateRef<any>;
+  @Input() public template: TemplateRef<any>;
 
   public isSelected = false;
   public isRightMenuVisible = false;
   public isLeftMenuVisible = false;
+  public isReadOnly = false;
   public controller: TreeController;
+
+  @ViewChild('checkbox') public checkboxElementRef: ElementRef;
 
   private subscriptions: Subscription[] = [];
 
-  public constructor(private nodeMenuService: NodeMenuService,
-                     public treeService: TreeService,
-                     public element: ElementRef) {
+  public constructor(
+    private nodeMenuService: NodeMenuService,
+    public treeService: TreeService,
+    public nodeElementRef: ElementRef
+  ) {}
+
+  public ngAfterViewInit(): void {
+    if (this.tree.checked && !(this.tree as any).firstCheckedFired) {
+      (this.tree as any).firstCheckedFired = true;
+      this.treeService.fireNodeChecked(this.tree);
+    }
   }
 
   public ngOnInit(): void {
-    this.controller = new TreeController(this);
-    if (get(this.tree, 'node.id', '')) {
-      this.treeService.setController(this.tree.node.id, this.controller);
+    const nodeId = get(this.tree, 'node.id', '');
+    if (nodeId) {
+      this.controller = new TreeController(this);
+      this.treeService.setController(nodeId, this.controller);
     }
 
-    this.settings = this.settings || { rootIsVisible: true };
-    this.subscriptions.push(this.nodeMenuService.hideMenuStream(this.element)
-      .subscribe(() => {
+    this.settings = this.settings || new Ng2TreeSettings();
+    this.isReadOnly = !get(this.settings, 'enableCheckboxes', true);
+
+    if (this.tree.isRoot() && this.settings.rootIsVisible === false) {
+      this.tree.disableCollapseOnInit();
+    }
+
+    this.subscriptions.push(
+      this.nodeMenuService.hideMenuStream(this.nodeElementRef).subscribe(() => {
         this.isRightMenuVisible = false;
         this.isLeftMenuVisible = false;
-      }));
+      })
+    );
 
-    this.subscriptions.push(this.treeService.unselectStream(this.tree)
-      .subscribe(() => this.isSelected = false));
+    this.subscriptions.push(this.treeService.unselectStream(this.tree).subscribe(() => (this.isSelected = false)));
 
-    this.subscriptions.push(this.treeService.draggedStream(this.tree, this.element)
-      .subscribe((e: NodeDraggableEvent) => {
+    this.subscriptions.push(
+      this.treeService.draggedStream(this.tree, this.nodeElementRef).subscribe((e: NodeDraggableEvent) => {
         if (this.tree.hasSibling(e.captured.tree)) {
           this.swapWithSibling(e.captured.tree, this.tree);
         } else if (this.tree.isBranch()) {
@@ -117,7 +146,15 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
         } else {
           this.moveNodeToParentTreeAndRemoveFromPreviousOne(e, this.tree);
         }
-      }));
+      })
+    );
+
+    this.subscriptions.push(
+      this.treeService.nodeChecked$
+        .merge(this.treeService.nodeUnchecked$)
+        .filter((e: NodeCheckedEvent) => this.eventContainsId(e) && this.tree.hasChild(e.node))
+        .subscribe((e: NodeCheckedEvent) => this.updateCheckboxState())
+    );
   }
 
   public ngOnChanges(changes: SimpleChanges): void {
@@ -150,9 +187,24 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   public onNodeSelected(e: { button: number }): void {
+    if (!this.tree.selectionAllowed) {
+      return;
+    }
+
     if (EventUtils.isLeftButtonClicked(e as MouseEvent)) {
       this.isSelected = true;
       this.treeService.fireNodeSelected(this.tree);
+    }
+  }
+
+  public onNodeUnselected(e: { button: number }): void {
+    if (!this.tree.selectionAllowed) {
+      return;
+    }
+
+    if (EventUtils.isLeftButtonClicked(e as MouseEvent)) {
+      this.isSelected = false;
+      this.treeService.fireNodeUnselected(this.tree);
     }
   }
 
@@ -163,7 +215,7 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
 
     if (EventUtils.isRightButtonClicked(e)) {
       this.isRightMenuVisible = !this.isRightMenuVisible;
-      this.nodeMenuService.hideMenuForAllNodesExcept(this.element);
+      this.nodeMenuService.hideMenuForAllNodesExcept(this.nodeElementRef);
     }
     e.preventDefault();
   }
@@ -175,7 +227,7 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
 
     if (EventUtils.isLeftButtonClicked(e)) {
       this.isLeftMenuVisible = !this.isLeftMenuVisible;
-      this.nodeMenuService.hideMenuForAllNodesExcept(this.element);
+      this.nodeMenuService.hideMenuForAllNodesExcept(this.nodeElementRef);
       if (this.isLeftMenuVisible) {
         e.preventDefault();
       }
@@ -197,6 +249,7 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
         this.onRemoveSelected();
         break;
       case NodeMenuItemAction.Custom:
+        this.onCustomSelected();
         this.treeService.fireMenuItemSelected(this.tree, e.nodeMenuItemSelected);
         break;
       default:
@@ -219,6 +272,11 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
   private onRemoveSelected(): void {
     this.treeService.deleteController(get(this.tree, 'node.id', ''));
     this.treeService.fireNodeRemoved(this.tree);
+  }
+
+  private onCustomSelected(): void {
+    this.isRightMenuVisible = false;
+    this.isLeftMenuVisible = false;
   }
 
   public onSwitchFoldingType(): void {
@@ -255,5 +313,76 @@ export class TreeInternalComponent implements OnInit, OnChanges, OnDestroy {
 
   public hasCustomMenu(): boolean {
     return this.tree.hasCustomMenu();
+  }
+
+  public switchNodeCheckStatus() {
+    if (!this.tree.checked) {
+      this.onNodeChecked();
+    } else {
+      this.onNodeUnchecked();
+    }
+  }
+
+  public onNodeChecked(): void {
+    if (!this.checkboxElementRef) {
+      return;
+    }
+
+    this.checkboxElementRef.nativeElement.indeterminate = false;
+    this.treeService.fireNodeChecked(this.tree);
+    this.executeOnChildController(controller => controller.check());
+    this.tree.checked = true;
+  }
+
+  public onNodeUnchecked(): void {
+    if (!this.checkboxElementRef) {
+      return;
+    }
+
+    this.checkboxElementRef.nativeElement.indeterminate = false;
+    this.treeService.fireNodeUnchecked(this.tree);
+    this.executeOnChildController(controller => controller.uncheck());
+    this.tree.checked = false;
+  }
+
+  private executeOnChildController(executor: (controller: TreeController) => void) {
+    if (this.tree.hasLoadedChildern()) {
+      this.tree.children.forEach((child: Tree) => {
+        const controller = this.treeService.getController(child.id);
+        if (!isNil(controller)) {
+          executor(controller);
+        }
+      });
+    }
+  }
+
+  updateCheckboxState(): void {
+    // Calling setTimeout so the value of isChecked will be updated and after that I'll check the children status.
+    setTimeout(() => {
+      const checkedChildrenAmount = this.tree.checkedChildrenAmount();
+      if (checkedChildrenAmount === 0) {
+        this.checkboxElementRef.nativeElement.indeterminate = false;
+        this.tree.checked = false;
+        this.treeService.fireNodeUnchecked(this.tree);
+      } else if (checkedChildrenAmount === this.tree.loadedChildrenAmount()) {
+        this.checkboxElementRef.nativeElement.indeterminate = false;
+        this.tree.checked = true;
+        this.treeService.fireNodeChecked(this.tree);
+      } else {
+        this.tree.checked = false;
+        this.checkboxElementRef.nativeElement.indeterminate = true;
+        this.treeService.fireNodeIndetermined(this.tree);
+      }
+    });
+  }
+
+  private eventContainsId(event: NodeEvent): boolean {
+    if (!event.node.id) {
+      console.warn(
+        '"Node with checkbox" feature requires a unique id assigned to every node, please consider to add it.'
+      );
+      return false;
+    }
+    return true;
   }
 }

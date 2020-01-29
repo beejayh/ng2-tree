@@ -1,4 +1,4 @@
-import { get, defaultsDeep } from './utils/fn.utils';
+import { defaultsDeep, get, omit } from './utils/fn.utils';
 import { NodeMenuItem } from './menu/node-menu.component';
 
 export class FoldingType {
@@ -7,8 +7,7 @@ export class FoldingType {
   public static Empty: FoldingType = new FoldingType('node-empty');
   public static Leaf: FoldingType = new FoldingType('node-leaf');
 
-  public constructor(private _cssClass: string) {
-  }
+  public constructor(private _cssClass: string) {}
 
   public get cssClass(): string {
     return this._cssClass;
@@ -94,23 +93,37 @@ export class TreeModelSettings {
 
   public isCollapsedOnInit?: boolean;
 
-  public static merge(sourceA: TreeModel, sourceB: TreeModel): TreeModelSettings {
-    return defaultsDeep(
-      {},
-      get(sourceA, 'settings'),
-      get(sourceB, 'settings'),
-      {static: false, leftMenu: false, rightMenu: true, isCollapsedOnInit: false}
-    );
+  public checked?: boolean;
+
+  public selectionAllowed?: boolean;
+
+  public keepNodesInDOM?: boolean;
+
+  public static readonly NOT_CASCADING_SETTINGS = ['selectionAllowed'];
+
+  public static merge(child: TreeModel, parent: TreeModel): TreeModelSettings {
+    const parentCascadingSettings = omit(get(parent, 'settings'), TreeModelSettings.NOT_CASCADING_SETTINGS);
+    return defaultsDeep({}, get(child, 'settings'), parentCascadingSettings, {
+      static: false,
+      leftMenu: false,
+      rightMenu: true,
+      isCollapsedOnInit: false,
+      checked: false,
+      keepNodesInDOM: false,
+      selectionAllowed: true
+    });
   }
 }
 
-export interface Ng2TreeSettings {
+export class Ng2TreeSettings {
   /**
    * Indicates root visibility in the tree. When true - root is invisible.
    * @name Ng2TreeSettings#rootIsVisible
    * @type boolean
    */
-  rootIsVisible?: boolean;
+  rootIsVisible? = true;
+  showCheckboxes? = false;
+  enableCheckboxes? = true;
 }
 
 export enum TreeStatus {

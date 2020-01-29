@@ -25,5 +25,4 @@ import { SafeHtmlPipe } from './utils/safe-html.pipe';
   exports: [TreeComponent],
   providers: [NodeDraggableService, NodeMenuService, TreeService]
 })
-export class TreeModule {
-}
+export class TreeModule {}

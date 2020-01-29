@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Component, DebugElement, ElementRef, ViewChild } from '@angular/core';
 import { TreeInternalComponent } from '../src/tree-internal.component';
@@ -14,6 +14,8 @@ import { NodeEditableDirective } from '../src/editable/node-editable.directive';
 import { TreeStatus } from '../src/tree.types';
 import * as EventUtils from '../src/utils/event.utils';
 import { SafeHtmlPipe } from '../src/utils/safe-html.pipe';
+import { Ng2TreeSettings, Tree } from '../index';
+import { isEmpty } from '../src/utils/fn.utils';
 
 let fixture: ComponentFixture<TestComponent>;
 let lordTreeInstance: TreeComponent;
@@ -33,40 +35,46 @@ const treeLord: TreeModel = {
       value: 'Disciple#1',
       id: 2,
       loadChildren(onLoaded) {
-        onLoaded([
-          { value: 'Newborn#1' },
-          { value: 'Newborn#2' }
-        ]);
+        onLoaded([{ value: 'Newborn#1' }, { value: 'Newborn#2' }]);
       }
     },
     {
       value: 'Disciple#2',
       id: 3,
-      children: [
-        { value: 'SubDisciple#1', id: 4 },
-        { value: 'SubDisciple#2', id: 5 }
-      ]
+      children: [{ value: 'SubDisciple#1', id: 4 }, { value: 'SubDisciple#2', id: 5 }]
     }
   ]
 };
 
 @Component({
   template: `
-  <div><tree id="lord" #lordTreeComponent [tree]="treeLord"></tree></div>
+  <div><tree id="lord" #lordTreeComponent [tree]="treeLord" [settings]="settings"></tree></div>
 `
 })
 class TestComponent {
+  public settings = new Ng2TreeSettings();
   public treeLord: TreeModel = treeLord;
 
   @ViewChild('lordTreeInstance') public lordTreeComponent;
 
-  public constructor(public treeHolder: ElementRef) { }
+  public constructor(public treeHolder: ElementRef) {
+    this.settings.enableCheckboxes = true;
+    this.settings.showCheckboxes = true;
+  }
 }
 
 describe('TreeController', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [TestComponent, TreeInternalComponent, TreeComponent, NodeEditableDirective, NodeMenuComponent, NodeDraggableDirective, SafeHtmlPipe],
+      declarations: [
+        TestComponent,
+        TreeInternalComponent,
+        TreeComponent,
+        NodeEditableDirective,
+        NodeMenuComponent,
+        NodeDraggableDirective,
+        SafeHtmlPipe
+      ],
       providers: [NodeMenuService, NodeDraggableService, TreeService, SafeHtmlPipe]
     });
 
@@ -88,6 +96,105 @@ describe('TreeController', () => {
   it('should have properly set tree controller property', () => {
     expect(treeService.getController(lordInternalTreeInstance.tree.id)).toBeDefined();
   });
+
+  it('can check a node', () => {
+    const controller = treeService.getController(lordInternalTreeInstance.tree.id);
+    expect(controller.isChecked()).toBe(false);
+
+    controller.check();
+
+    fixture.detectChanges();
+
+    expect(controller.isChecked()).toBe(true);
+  });
+
+  it('can uncheck a node', () => {
+    const controller = treeService.getController(lordInternalTreeInstance.tree.id);
+    expect(controller.isChecked()).toBe(false);
+
+    controller.check();
+    fixture.detectChanges();
+
+    controller.uncheck();
+    fixture.detectChanges();
+
+    expect(controller.isChecked()).toBe(false);
+  });
+
+  it('forbids selection', () => {
+    const controller = treeService.getController(lordInternalTreeInstance.tree.id);
+    expect(controller.isSelectionAllowed()).toBe(true);
+
+    controller.forbidSelection();
+
+    fixture.detectChanges();
+
+    expect(controller.isSelectionAllowed()).toBe(false);
+  });
+
+  it('allows selection', () => {
+    const controller = treeService.getController(lordInternalTreeInstance.tree.id);
+    expect(controller.isSelectionAllowed()).toBe(true);
+
+    controller.forbidSelection();
+    fixture.detectChanges();
+
+    expect(controller.isSelectionAllowed()).toBe(false);
+
+    controller.allowSelection();
+    fixture.detectChanges();
+
+    expect(controller.isSelectionAllowed()).toBe(true);
+  });
+
+  it('checks all the children down the branch', () => {
+    const tree = lordInternalTreeInstance.tree;
+    const controller = treeService.getController(tree.id);
+
+    controller.check();
+    fixture.detectChanges();
+
+    const checkChildChecked = (children: Tree[], checked: boolean) =>
+      isEmpty(children)
+        ? checked
+        : children.every(child => child.checked && checkChildChecked(child.children, child.checked));
+
+    expect(checkChildChecked(tree.children, tree.checked)).toBe(true, 'All the children should be checked');
+  });
+
+  it('unchecks all the children down the branch', () => {
+    const tree = lordInternalTreeInstance.tree;
+    const controller = treeService.getController(tree.id);
+
+    controller.check();
+    fixture.detectChanges();
+
+    controller.uncheck();
+    fixture.detectChanges();
+
+    const checkChildChecked = (children: Tree[], checked: boolean) =>
+      isEmpty(children)
+        ? checked
+        : children.every(child => child.checked && checkChildChecked(child.children, child.checked));
+
+    expect(checkChildChecked(tree.children, tree.checked)).toBe(false, 'All the children should be unchecked');
+  });
+
+  it(
+    'detects indetermined node',
+    fakeAsync(() => {
+      const tree = lordInternalTreeInstance.tree;
+      const controller = treeService.getController(tree.id);
+      const childController = treeService.getController(tree.children[0].id);
+
+      childController.check();
+      fixture.detectChanges();
+      tick();
+
+      expect(childController.isChecked()).toBe(true, 'Node should be checked');
+      expect(controller.isIndetermined()).toBe(true, 'Node should be in indetermined state');
+    })
+  );
 
   it('knows when node is selected', () => {
     const event = jasmine.createSpyObj('e', ['preventDefault']);
@@ -190,7 +297,6 @@ describe('TreeController', () => {
     lordController.expand();
     lordController.expand();
 
-
     expect(lordController.isExpanded()).toBe(true);
     expect(treeService.nodeExpanded$.next).toHaveBeenCalledTimes(1);
     expect(treeService.nodeCollapsed$.next).toHaveBeenCalledTimes(1);
@@ -229,10 +335,7 @@ describe('TreeController', () => {
 
     childController.addChild({
       value: 'N',
-      children: [
-        { value: 'N1' },
-        { value: 'N2' },
-      ]
+      children: [{ value: 'N1' }, { value: 'N2' }]
     });
 
     fixture.detectChanges();
@@ -304,10 +407,7 @@ describe('TreeController', () => {
 
     const childController = treeService.getController(lordInternalTreeInstance.tree.id);
 
-    childController.setChildren([
-      { value: 'N1' },
-      { value: 'N2' },
-    ]);
+    childController.setChildren([{ value: 'N1' }, { value: 'N2' }]);
 
     fixture.detectChanges();
 
@@ -327,10 +427,7 @@ describe('TreeController', () => {
 
     const childController = treeService.getController(child.componentInstance.tree.id);
 
-    childController.setChildren([
-      { value: 'N1' },
-      { value: 'N2' },
-    ]);
+    childController.setChildren([{ value: 'N1' }, { value: 'N2' }]);
 
     fixture.detectChanges();
 
@@ -349,14 +446,13 @@ describe('TreeController', () => {
   });
 
   it('knows how to convert a tree to tree model', () => {
-
     const model = { value: 'bla' };
 
     const tree: any = {
       toTreeModel: jasmine.createSpy('tree.toTreeModel').and.returnValue(model)
     };
 
-    const controller = new TreeController({tree, treeService: null} as any);
+    const controller = new TreeController({ tree, treeService: null } as any);
 
     const actualModel = controller.toTreeModel();
 

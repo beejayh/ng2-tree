@@ -1,20 +1,15 @@
-import {
-  isEmpty,
-  trim,
-  has,
-  isFunction,
-  get,
-  omit,
-  size,
-  once,
-  includes,
-  isNil,
-  defaultsDeep
-} from './utils/fn.utils';
+import { defaultsDeep, get, has, includes, isEmpty, isFunction, isNil, omit, once, size, trim } from './utils/fn.utils';
 
 import { Observable } from 'rxjs/Observable';
 import { Observer } from 'rxjs/Observer';
-import { TreeModel, RenamableNode, FoldingType, TreeStatus, TreeModelSettings, ChildrenLoadingFunction } from './tree.types';
+import {
+  ChildrenLoadingFunction,
+  FoldingType,
+  RenamableNode,
+  TreeModel,
+  TreeModelSettings,
+  TreeStatus
+} from './tree.types';
 import { NodeMenuItem } from './menu/node-menu.component';
 
 import * as uuidv4 from 'uuid/v4';
@@ -65,8 +60,11 @@ export class Tree {
    * @static
    */
   public static isRenamable(value: any): value is RenamableNode {
-    return (has(value, 'setName') && isFunction(value.setName))
-      && (has(value, 'toString') && isFunction(value.toString) && value.toString !== Object.toString);
+    return (
+      has(value, 'setName') &&
+      isFunction(value.setName) &&
+      (has(value, 'toString') && isFunction(value.toString) && value.toString !== Object.toString)
+    );
   }
 
   private static cloneTreeShallow(origin: Tree): Tree {
@@ -93,9 +91,11 @@ export class Tree {
 
   private buildTreeFromModel(model: TreeModel, parent: Tree, isBranch: boolean): void {
     this.parent = parent;
-    this.node = Object.assign(omit(model, 'children') as TreeModel, {
-      settings: TreeModelSettings.merge(model, get(parent, 'node') as TreeModel)
-    }, { emitLoadNextLevel: model.emitLoadNextLevel === true }) as TreeModel;
+    this.node = Object.assign(
+      omit(model, 'children') as TreeModel,
+      { settings: TreeModelSettings.merge(model, get(parent, 'node')) },
+      { emitLoadNextLevel: model.emitLoadNextLevel === true }
+    ) as TreeModel;
 
     if (isFunction(this.node.loadChildren)) {
       this._loadChildren = this.node.loadChildren;
@@ -124,7 +124,7 @@ export class Tree {
    * @returns {boolean} A flag indicating that children are being loaded.
    */
   public childrenAreBeingLoaded(): boolean {
-    return (this._childrenLoadingState === ChildrenLoadingState.Loading);
+    return this._childrenLoadingState === ChildrenLoadingState.Loading;
   }
 
   /**
@@ -133,13 +133,15 @@ export class Tree {
    * @returns {boolean} A flag indicating that children were loaded.
    */
   public childrenWereLoaded(): boolean {
-    return (this._childrenLoadingState === ChildrenLoadingState.Completed);
+    return this._childrenLoadingState === ChildrenLoadingState.Completed;
   }
 
   private canLoadChildren(): boolean {
-    return (this._childrenLoadingState === ChildrenLoadingState.NotStarted)
-      && (this.foldingType === FoldingType.Expanded)
-      && (!!this._loadChildren);
+    return (
+      this._childrenLoadingState === ChildrenLoadingState.NotStarted &&
+      this.foldingType === FoldingType.Expanded &&
+      !!this._loadChildren
+    );
   }
 
   /**
@@ -224,6 +226,39 @@ export class Tree {
    */
   public get value(): any {
     return this.node.value;
+  }
+
+  public set checked(checked: boolean) {
+    this.node.settings = Object.assign({}, this.node.settings, { checked });
+  }
+
+  public get checked(): boolean {
+    return !!get(this.node.settings, 'checked');
+  }
+
+  public get checkedChildren(): Tree[] {
+    return this.hasLoadedChildern() ? this.children.filter(child => child.checked) : [];
+  }
+
+  public set selectionAllowed(selectionAllowed: boolean) {
+    this.node.settings = Object.assign({}, this.node.settings, { selectionAllowed });
+  }
+
+  public get selectionAllowed(): boolean {
+    const value = get(this.node.settings, 'selectionAllowed');
+    return isNil(value) ? true : !!value;
+  }
+
+  hasLoadedChildern() {
+    return !isEmpty(this.children);
+  }
+
+  loadedChildrenAmount() {
+    return size(this.children);
+  }
+
+  checkedChildrenAmount() {
+    return size(this.checkedChildren);
   }
 
   /**
@@ -538,7 +573,7 @@ export class Tree {
     return '';
   }
 
-  private disableCollapseOnInit() {
+  public disableCollapseOnInit() {
     if (this.node.settings) {
       this.node.settings.isCollapsedOnInit = false;
     }
@@ -546,6 +581,10 @@ export class Tree {
 
   public isCollapsedOnInit() {
     return !!get(this.node.settings, 'isCollapsedOnInit');
+  }
+
+  public keepNodesInDOM() {
+    return get(this.node.settings, 'keepNodesInDOM');
   }
 
   /**
@@ -606,7 +645,7 @@ export class Tree {
    * @returns {TreeModel} a clone of an underlying TreeModel instance
    */
   public toTreeModel(): TreeModel {
-    const model = defaultsDeep(this.isLeaf() ? {} : {children: []}, this.node);
+    const model = defaultsDeep(this.isLeaf() ? {} : { children: [] }, this.node);
 
     if (this.children) {
       this.children.forEach(child => {

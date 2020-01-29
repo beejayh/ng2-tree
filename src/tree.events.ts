@@ -1,13 +1,17 @@
 import { Tree } from './tree';
-import { TreeController } from './tree-controller';
 import { RenamableNode } from './tree.types';
 
 export class NodeEvent {
-  public constructor(public node: Tree) {
-  }
+  public constructor(public node: Tree) {}
 }
 
 export class NodeSelectedEvent extends NodeEvent {
+  public constructor(node: Tree) {
+    super(node);
+  }
+}
+
+export class NodeUnselectedEvent extends NodeEvent {
   public constructor(node: Tree) {
     super(node);
   }
@@ -62,6 +66,24 @@ export class MenuItemSelectedEvent extends NodeEvent {
 }
 
 export class LoadNextLevelEvent extends NodeEvent {
+  public constructor(node: Tree) {
+    super(node);
+  }
+}
+
+export class NodeCheckedEvent extends NodeEvent {
+  public constructor(node: Tree) {
+    super(node);
+  }
+}
+
+export class NodeUncheckedEvent extends NodeEvent {
+  public constructor(node: Tree) {
+    super(node);
+  }
+}
+
+export class NodeIndeterminedEvent extends NodeEvent {
   public constructor(node: Tree) {
     super(node);
   }

@@ -1,13 +1,17 @@
 import {
+  LoadNextLevelEvent,
+  MenuItemSelectedEvent,
+  NodeCheckedEvent,
   NodeCollapsedEvent,
   NodeCreatedEvent,
   NodeExpandedEvent,
+  NodeIndeterminedEvent,
   NodeMovedEvent,
   NodeRemovedEvent,
   NodeRenamedEvent,
   NodeSelectedEvent,
-  MenuItemSelectedEvent,
-  LoadNextLevelEvent
+  NodeUncheckedEvent,
+  NodeUnselectedEvent
 } from './tree.events';
 import { RenamableNode } from './tree.types';
 import { Tree } from './tree';
@@ -26,14 +30,18 @@ export class TreeService {
   public nodeRenamed$: Subject<NodeRenamedEvent> = new Subject<NodeRenamedEvent>();
   public nodeCreated$: Subject<NodeCreatedEvent> = new Subject<NodeCreatedEvent>();
   public nodeSelected$: Subject<NodeSelectedEvent> = new Subject<NodeSelectedEvent>();
+  public nodeUnselected$: Subject<NodeUnselectedEvent> = new Subject<NodeUnselectedEvent>();
   public nodeExpanded$: Subject<NodeExpandedEvent> = new Subject<NodeExpandedEvent>();
   public nodeCollapsed$: Subject<NodeCollapsedEvent> = new Subject<NodeCollapsedEvent>();
   public menuItemSelected$: Subject<MenuItemSelectedEvent> = new Subject<MenuItemSelectedEvent>();
   public loadNextLevel$: Subject<LoadNextLevelEvent> = new Subject<LoadNextLevelEvent>();
+  public nodeChecked$: Subject<NodeCheckedEvent> = new Subject<NodeCheckedEvent>();
+  public nodeUnchecked$: Subject<NodeUncheckedEvent> = new Subject<NodeUncheckedEvent>();
+  public nodeIndetermined$: Subject<NodeIndeterminedEvent> = new Subject<NodeIndeterminedEvent>();
 
   private controllers: Map<string | number, TreeController> = new Map();
 
-  public constructor( @Inject(NodeDraggableService) private nodeDraggableService: NodeDraggableService) {
+  public constructor(@Inject(NodeDraggableService) private nodeDraggableService: NodeDraggableService) {
     this.nodeRemoved$.subscribe((e: NodeRemovedEvent) => e.node.removeItselfFromParent());
   }
 
@@ -51,6 +59,10 @@ export class TreeService {
 
   public fireNodeSelected(tree: Tree): void {
     this.nodeSelected$.next(new NodeSelectedEvent(tree));
+  }
+
+  public fireNodeUnselected(tree: Tree): void {
+    this.nodeUnselected$.next(new NodeUnselectedEvent(tree));
   }
 
   public fireNodeRenamed(oldValue: RenamableNode | string, tree: Tree): void {
@@ -88,6 +100,14 @@ export class TreeService {
     this.loadNextLevel$.next(new LoadNextLevelEvent(tree));
   }
 
+  public fireNodeChecked(tree: Tree): void {
+    this.nodeChecked$.next(new NodeCheckedEvent(tree));
+  }
+
+  public fireNodeUnchecked(tree: Tree): void {
+    this.nodeUnchecked$.next(new NodeUncheckedEvent(tree));
+  }
+
   public draggedStream(tree: Tree, element: ElementRef): Observable<NodeDraggableEvent> {
     return this.nodeDraggableService.draggableNodeEvents$
       .filter((e: NodeDraggableEvent) => e.target === element)
@@ -117,16 +137,20 @@ export class TreeService {
   }
 
   private shouldFireLoadNextLevel(tree: Tree): boolean {
-
-    const shouldLoadNextLevel = tree.node.emitLoadNextLevel &&
+    const shouldLoadNextLevel =
+      tree.node.emitLoadNextLevel &&
       !tree.node.loadChildren &&
       !tree.childrenAreBeingLoaded() &&
-      (!tree.children || isEmpty(tree.children));
+      isEmpty(tree.children);
 
-      if (shouldLoadNextLevel) {
-        tree.loadingChildrenRequested();
-      }
+    if (shouldLoadNextLevel) {
+      tree.loadingChildrenRequested();
+    }
 
-      return shouldLoadNextLevel;
+    return shouldLoadNextLevel;
+  }
+
+  public fireNodeIndetermined(tree: Tree): void {
+    this.nodeIndetermined$.next(new NodeIndeterminedEvent(tree));
   }
 }

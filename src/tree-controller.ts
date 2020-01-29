@@ -4,6 +4,7 @@ import { TreeModel } from './tree.types';
 import { NodeMenuItemAction } from './menu/menu.events';
 import { TreeInternalComponent } from './tree-internal.component';
 import { MouseButtons } from './utils/event.utils';
+import { get } from './utils/fn.utils';
 
 export class TreeController {
   private tree: Tree;
@@ -20,6 +21,12 @@ export class TreeController {
     }
   }
 
+  public unselect(): void {
+    if (this.isSelected()) {
+      this.component.onNodeUnselected({ button: MouseButtons.Left });
+    }
+  }
+
   public isSelected(): boolean {
     return this.component.isSelected;
   }
@@ -27,6 +34,18 @@ export class TreeController {
   public expand(): void {
     if (this.isCollapsed()) {
       this.component.onSwitchFoldingType();
+    }
+  }
+
+  public expandToParent(tree: any = this.tree): void {
+    if (tree) {
+      const controller = this.treeService.getController(tree.id);
+      if (controller) {
+        requestAnimationFrame(() => {
+          controller.expand();
+          this.expandToParent(tree.parent);
+        });
+      }
     }
   }
 
@@ -66,6 +85,24 @@ export class TreeController {
     this.treeService.fireNodeCreated(newTree);
   }
 
+  public addChildAsync(newNode: TreeModel): Promise<Tree> {
+    if (this.tree.hasDeferredChildren() && !this.tree.childrenWereLoaded()) {
+      return Promise.reject(
+        new Error('This node loads its children asynchronously, hence child cannot be added this way')
+      );
+    }
+
+    const newTree = this.tree.createNode(Array.isArray(newNode.children), newNode);
+    this.treeService.fireNodeCreated(newTree);
+
+    // This will give TreeInternalComponent to set up a controller for the node
+    return new Promise(resolve => {
+      setTimeout(() => {
+        resolve(newTree);
+      });
+    });
+  }
+
   public changeNodeId(id: string | number) {
     if (!id) {
       throw Error('You should supply an id!');
@@ -92,6 +129,33 @@ export class TreeController {
 
   public startRenaming(): void {
     this.tree.markAsBeingRenamed();
+  }
 
+  public check(): void {
+    this.component.onNodeChecked();
+  }
+
+  public uncheck(): void {
+    this.component.onNodeUnchecked();
+  }
+
+  public isChecked(): boolean {
+    return this.tree.checked;
+  }
+
+  public isIndetermined(): boolean {
+    return get(this.component, 'checkboxElementRef.nativeElement.indeterminate');
+  }
+
+  public allowSelection() {
+    this.tree.selectionAllowed = true;
+  }
+
+  public forbidSelection() {
+    this.tree.selectionAllowed = false;
+  }
+
+  public isSelectionAllowed(): boolean {
+    return this.tree.selectionAllowed;
   }
 }
